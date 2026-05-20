@@ -9,7 +9,7 @@ import time
 BOT_TOKEN = "8980896068:AAEvfqOuIT6JLHWm6t01sWC3ME7fJF-8bJg"  # Paste Bot Token Here
 
 # Dummy HTTPS API Server
-EXTERNAL_API_URL = ""  # Example: https://dummyjson.com/users/1
+EXTERNAL_API_URL = "https://dummyjson.com/users/1"  # Example: https://dummyjson.com/users/1
 
 BASE_URL = f"https://api.telegram.org/bot{BOT_TOKEN}"
 
