@@ -6,7 +6,7 @@ import time
 # BOT CONFIG
 # =========================================
 
-BOT_TOKEN = "8980896068:AAEvfqOuIT6JLHWm6t01sWC3ME7fJF-8bJg"
+BOT_TOKEN = "8980896068:AAE2cVF_aN8V8_4KpDcf7nyCo3cTfxtj270"
 
 # Dummy HTTPS API
 EXTERNAL_API_URL = "https://dummyjson.com/users/1"
