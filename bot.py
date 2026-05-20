@@ -1,80 +1,96 @@
 import requests
 import json
 import time
+import threading
+import os
+
+from http.server import BaseHTTPRequestHandler, HTTPServer
+
 
 # =========================================
-# BOT CONFIG
+# BOT SETTINGS
 # =========================================
 
 BOT_TOKEN = "8980896068:AAE2cVF_aN8V8_4KpDcf7nyCo3cTfxtj270"
 
-# Dummy HTTPS API
-EXTERNAL_API_URL = "https://dummyjson.com/users/1"
-
-BASE_URL = f"https://api.telegram.org/bot{BOT_TOKEN}"
-
-# =========================================
-# CHANNEL & GROUP
-# =========================================
+API_URL = "https://dummyjson.com/users/1"
 
 CHANNEL_USERNAME = "@alveeevanroky320"
+
 GROUP_USERNAME = "@alveeevanroky320bot"
 
 CHANNEL_LINK = "https://t.me/alveeevanroky320"
+
 GROUP_LINK = "https://t.me/alveeevanroky320bot"
 
-# =========================================
-# VERIFIED USERS MEMORY
-# =========================================
 
-verified_users = set()
+BASE_URL = f"https://api.telegram.org/bot{BOT_TOKEN}"
+
 
 # =========================================
 # SEND MESSAGE
 # =========================================
 
-def send_message(chat_id, text, reply_markup=None, parse_mode=None):
+def send_message(chat_id, text, reply_markup=None):
 
     url = f"{BASE_URL}/sendMessage"
 
-    payload = {
+    data = {
         "chat_id": chat_id,
-        "text": text
+        "text": text,
+        "parse_mode": "HTML"
     }
 
     if reply_markup:
-        payload["reply_markup"] = json.dumps(reply_markup)
+        data["reply_markup"] = json.dumps(reply_markup)
 
-    if parse_mode:
-        payload["parse_mode"] = parse_mode
+    requests.post(url, data=data)
+
+
+# =========================================
+# CHECK USER JOINED OR NOT
+# =========================================
+
+def check_membership(user_id):
 
     try:
-        requests.post(url, data=payload, timeout=30)
+
+        channel_url = f"{BASE_URL}/getChatMember"
+
+        channel_data = {
+            "chat_id": CHANNEL_USERNAME,
+            "user_id": user_id
+        }
+
+        channel_response = requests.post(channel_url, data=channel_data).json()
+
+        group_data = {
+            "chat_id": GROUP_USERNAME,
+            "user_id": user_id
+        }
+
+        group_response = requests.post(channel_url, data=group_data).json()
+
+        channel_status = channel_response["result"]["status"]
+
+        group_status = group_response["result"]["status"]
+
+        allowed = ["member", "administrator", "creator"]
+
+        if channel_status in allowed and group_status in allowed:
+            return True
+
+        return False
 
     except Exception as e:
-        print("Send Message Error:", e)
+
+        print("Membership Error:", e)
+
+        return False
+
 
 # =========================================
-# MAIN KEYBOARD
-# =========================================
-
-def main_keyboard():
-
-    keyboard = {
-        "keyboard": [
-            [
-                {
-                    "text": "📱 Phone Lookup"
-                }
-            ]
-        ],
-        "resize_keyboard": True
-    }
-
-    return keyboard
-
-# =========================================
-# FORCE JOIN BUTTON
+# JOIN BUTTONS
 # =========================================
 
 def join_keyboard():
@@ -92,76 +108,50 @@ def join_keyboard():
                     "text": "👥 Join Group",
                     "url": GROUP_LINK
                 }
-            ],
-            [
-                {
-                    "text": "✅ Verify",
-                    "callback_data": "verify_join"
-                }
             ]
         ]
     }
 
     return keyboard
 
+
 # =========================================
-# CHECK MEMBERSHIP
+# MAIN MENU
 # =========================================
 
-def check_membership(user_id):
+def main_menu():
 
-    try:
+    keyboard = {
+        "keyboard": [
+            [
+                {
+                    "text": "📱 Phone Lookup"
+                }
+            ]
+        ],
+        "resize_keyboard": True
+    }
 
-        url = f"{BASE_URL}/getChatMember"
+    return keyboard
 
-        # Check Channel
-        channel_params = {
-            "chat_id": CHANNEL_USERNAME,
-            "user_id": user_id
-        }
 
-        channel_response = requests.get(
-            url,
-            params=channel_params,
-            timeout=30
-        )
+# =========================================
+# GET UPDATES
+# =========================================
 
-        channel_data = channel_response.json()
+def get_updates(offset):
 
-        channel_status = channel_data["result"]["status"]
+    url = f"{BASE_URL}/getUpdates"
 
-        # Check Group
-        group_params = {
-            "chat_id": GROUP_USERNAME,
-            "user_id": user_id
-        }
+    params = {
+        "timeout": 30,
+        "offset": offset
+    }
 
-        group_response = requests.get(
-            url,
-            params=group_params,
-            timeout=30
-        )
+    response = requests.get(url, params=params)
 
-        group_data = group_response.json()
+    return response.json()
 
-        group_status = group_data["result"]["status"]
-
-        valid_status = [
-            "member",
-            "administrator",
-            "creator"
-        ]
-
-        if channel_status in valid_status and group_status in valid_status:
-            return True
-
-        return False
-
-    except Exception as e:
-
-        print("Membership Error:", e)
-
-        return False
 
 # =========================================
 # PHONE LOOKUP
@@ -171,256 +161,56 @@ def phone_lookup(number):
 
     try:
 
-        response = requests.get(
-            EXTERNAL_API_URL,
-            timeout=30
-        )
+        response = requests.get(API_URL)
 
         data = response.json()
 
-        result = {
-            "searched_number": number,
-            "api_response": data
-        }
+        pretty = json.dumps(data, indent=4)
 
-        return json.dumps(result, indent=4)
+        return pretty
 
     except Exception as e:
 
-        error_data = {
-            "error": str(e)
-        }
+        return str(e)
 
-        return json.dumps(error_data, indent=4)
 
 # =========================================
-# CALLBACK ANSWER
+# DUMMY WEB SERVER
 # =========================================
 
-def answer_callback(callback_id, text):
+class Handler(BaseHTTPRequestHandler):
 
-    url = f"{BASE_URL}/answerCallbackQuery"
+    def do_GET(self):
 
-    payload = {
-        "callback_query_id": callback_id,
-        "text": text
-    }
+        self.send_response(200)
 
-    try:
+        self.send_header("Content-type", "text/html")
 
-        requests.post(
-            url,
-            data=payload,
-            timeout=30
-        )
+        self.end_headers()
 
-    except Exception as e:
+        self.wfile.write(b"Bot Running")
 
-        print("Callback Error:", e)
 
-# =========================================
-# HANDLE CALLBACK
-# =========================================
+def run_web():
 
-def handle_callback(callback_query):
+    port = int(os.environ.get("PORT", 10000))
 
-    callback_id = callback_query["id"]
+    server = HTTPServer(("0.0.0.0", port), Handler)
 
-    user_id = callback_query["from"]["id"]
+    server.serve_forever()
 
-    chat_id = callback_query["message"]["chat"]["id"]
-
-    data = callback_query["data"]
-
-    # =====================================
-    # VERIFY BUTTON
-    # =====================================
-
-    if data == "verify_join":
-
-        joined = check_membership(user_id)
-
-        if joined:
-
-            # Save Verified User
-            verified_users.add(user_id)
-
-            answer_callback(
-                callback_id,
-                "Verification Successful"
-            )
-
-            send_message(
-                chat_id,
-                "✅ Verification Successful\n\nNow You Can Use Bot.",
-                reply_markup=main_keyboard()
-            )
-
-        else:
-
-            answer_callback(
-                callback_id,
-                "Join Channel & Group First"
-            )
-
-            send_message(
-                chat_id,
-                "❌ First Join Channel And Group",
-                reply_markup=join_keyboard()
-            )
 
 # =========================================
-# HANDLE MESSAGE
-# =========================================
-
-def handle_message(message):
-
-    if "text" not in message:
-        return
-
-    chat_id = message["chat"]["id"]
-
-    user_id = message["from"]["id"]
-
-    text = message["text"].strip()
-
-    # =====================================
-    # START COMMAND
-    # =====================================
-
-    if text == "/start":
-
-        # Already Verified
-        if user_id in verified_users:
-
-            send_message(
-                chat_id,
-                "✅ You Are Already Verified",
-                reply_markup=main_keyboard()
-            )
-
-            return
-
-        # Check Membership
-        joined = check_membership(user_id)
-
-        if joined:
-
-            verified_users.add(user_id)
-
-            send_message(
-                chat_id,
-                "✅ Verification Successful",
-                reply_markup=main_keyboard()
-            )
-
-        else:
-
-            send_message(
-                chat_id,
-                "🚫 Join Channel And Group First",
-                reply_markup=join_keyboard()
-            )
-
-    # =====================================
-    # PHONE LOOKUP BUTTON
-    # =====================================
-
-    elif text == "📱 Phone Lookup":
-
-        if user_id not in verified_users:
-
-            send_message(
-                chat_id,
-                "🚫 First Verify Yourself",
-                reply_markup=join_keyboard()
-            )
-
-            return
-
-        send_message(
-            chat_id,
-            "📞 Send 11 digit mobile number:"
-        )
-
-    # =====================================
-    # 11 DIGIT NUMBER
-    # =====================================
-
-    elif text.isdigit() and len(text) == 11:
-
-        if user_id not in verified_users:
-
-            send_message(
-                chat_id,
-                "🚫 First Verify Yourself",
-                reply_markup=join_keyboard()
-            )
-
-            return
-
-        send_message(
-            chat_id,
-            "🔍 Searching..."
-        )
-
-        result = phone_lookup(text)
-
-        send_message(
-            chat_id,
-            f"<pre>{result}</pre>",
-            parse_mode="HTML"
-        )
-
-    # =====================================
-    # INVALID INPUT
-    # =====================================
-
-    else:
-
-        send_message(
-            chat_id,
-            "❌ Invalid Input\n\nSend Valid 11 Digit Mobile Number."
-        )
-
-# =========================================
-# GET UPDATES
-# =========================================
-
-def get_updates(offset=None):
-
-    url = f"{BASE_URL}/getUpdates"
-
-    params = {
-        "timeout": 30,
-        "offset": offset
-    }
-
-    try:
-
-        response = requests.get(
-            url,
-            params=params,
-            timeout=35
-        )
-
-        return response.json()
-
-    except Exception as e:
-
-        print("Get Updates Error:", e)
-
-        return {}
-
-# =========================================
-# RUN BOT
+# BOT LOOP
 # =========================================
 
 def run_bot():
 
     print("Bot Running...")
 
-    offset = None
+    offset = 0
+
+    verified_users = {}
 
     while True:
 
@@ -428,36 +218,123 @@ def run_bot():
 
             updates = get_updates(offset)
 
-            if updates.get("ok"):
+            if "result" in updates:
 
                 for update in updates["result"]:
 
                     offset = update["update_id"] + 1
 
-                    # Handle Message
-                    if "message" in update:
+                    if "message" not in update:
+                        continue
 
-                        handle_message(update["message"])
+                    message = update["message"]
 
-                    # Handle Callback
-                    if "callback_query" in update:
+                    chat_id = message["chat"]["id"]
 
-                        handle_callback(
-                            update["callback_query"]
-                        )
+                    user_id = message["from"]["id"]
 
-            time.sleep(1)
+                    text = message.get("text", "")
+
+                    # ==========================
+                    # START COMMAND
+                    # ==========================
+
+                    if text == "/start":
+
+                        joined = check_membership(user_id)
+
+                        if joined:
+
+                            verified_users[user_id] = True
+
+                            send_message(
+                                chat_id,
+                                "✅ You Are Verified\n\nWelcome To Phone Lookup Bot",
+                                main_menu()
+                            )
+
+                        else:
+
+                            send_message(
+                                chat_id,
+                                "⚠️ Join Channel And Group First",
+                                join_keyboard()
+                            )
+
+                    # ==========================
+                    # PHONE LOOKUP BUTTON
+                    # ==========================
+
+                    elif text == "📱 Phone Lookup":
+
+                        joined = check_membership(user_id)
+
+                        if joined:
+
+                            verified_users[user_id] = True
+
+                            send_message(
+                                chat_id,
+                                "📞 Send 11 digit Bangladesh mobile number:"
+                            )
+
+                        else:
+
+                            send_message(
+                                chat_id,
+                                "❌ Join Channel And Group First",
+                                join_keyboard()
+                            )
+
+                    # ==========================
+                    # PHONE NUMBER CHECK
+                    # ==========================
+
+                    elif text.isdigit():
+
+                        joined = check_membership(user_id)
+
+                        if not joined:
+
+                            send_message(
+                                chat_id,
+                                "❌ Join Channel And Group First",
+                                join_keyboard()
+                            )
+
+                            continue
+
+                        if len(text) == 11:
+
+                            result = phone_lookup(text)
+
+                            send_message(
+                                chat_id,
+                                f"<pre>{result}</pre>"
+                            )
+
+                        else:
+
+                            send_message(
+                                chat_id,
+                                "❌ Invalid Number\n\nSend valid 11 digit Bangladesh number."
+                            )
 
         except Exception as e:
 
-            print("Main Loop Error:", e)
+            print("Error:", e)
 
             time.sleep(5)
 
+
 # =========================================
-# START BOT
+# START
 # =========================================
 
 if __name__ == "__main__":
+
+    t1 = threading.Thread(target=run_web)
+
+    t1.start()
 
     run_bot()
