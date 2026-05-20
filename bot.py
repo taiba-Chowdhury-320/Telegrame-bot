@@ -6,12 +6,22 @@ import time
 # BOT CONFIG
 # =========================================
 
-BOT_TOKEN = "8980896068:AAEvfqOuIT6JLHWm6t01sWC3ME7fJF-8bJg"  # Paste Bot Token Here
+BOT_TOKEN = "8980896068:AAEvfqOuIT6JLHWm6t01sWC3ME7fJF-8bJg"
 
-# Dummy HTTPS API Server
-EXTERNAL_API_URL = "https://dummyjson.com/users/1"  # Example: https://dummyjson.com/users/1
+# Dummy HTTPS API
+EXTERNAL_API_URL = "https://dummyjson.com/users/1"
 
 BASE_URL = f"https://api.telegram.org/bot{BOT_TOKEN}"
+
+# =========================================
+# REQUIRED CHANNEL & GROUP
+# =========================================
+
+CHANNEL_USERNAME = "@alveeevanroky320"
+GROUP_USERNAME = "@alveeevanroky320bot"
+
+CHANNEL_LINK = "https://t.me/alveeevanroky320"
+GROUP_LINK = "https://t.me/alveeevanroky320bot"
 
 # =========================================
 # SEND MESSAGE
@@ -39,7 +49,7 @@ def send_message(chat_id, text, reply_markup=None, parse_mode=None):
         print("Send Message Error:", e)
 
 # =========================================
-# CUSTOM KEYBOARD
+# MAIN KEYBOARD
 # =========================================
 
 def main_keyboard():
@@ -58,14 +68,103 @@ def main_keyboard():
     return keyboard
 
 # =========================================
-# PHONE LOOKUP API
+# FORCE JOIN BUTTON
+# =========================================
+
+def force_join_keyboard():
+
+    keyboard = {
+        "inline_keyboard": [
+            [
+                {
+                    "text": "📢 Join Channel",
+                    "url": CHANNEL_LINK
+                }
+            ],
+            [
+                {
+                    "text": "👥 Join Group",
+                    "url": GROUP_LINK
+                }
+            ],
+            [
+                {
+                    "text": "✅ Verify",
+                    "callback_data": "verify_join"
+                }
+            ]
+        ]
+    }
+
+    return keyboard
+
+# =========================================
+# CHECK USER JOINED OR NOT
+# =========================================
+
+def check_membership(user_id):
+
+    try:
+
+        # Check Channel
+        channel_url = f"{BASE_URL}/getChatMember"
+
+        channel_params = {
+            "chat_id": CHANNEL_USERNAME,
+            "user_id": user_id
+        }
+
+        channel_response = requests.get(
+            channel_url,
+            params=channel_params,
+            timeout=30
+        )
+
+        channel_data = channel_response.json()
+
+        channel_status = channel_data["result"]["status"]
+
+        # Check Group
+        group_params = {
+            "chat_id": GROUP_USERNAME,
+            "user_id": user_id
+        }
+
+        group_response = requests.get(
+            channel_url,
+            params=group_params,
+            timeout=30
+        )
+
+        group_data = group_response.json()
+
+        group_status = group_data["result"]["status"]
+
+        valid_status = [
+            "member",
+            "administrator",
+            "creator"
+        ]
+
+        if channel_status in valid_status and group_status in valid_status:
+            return True
+
+        return False
+
+    except Exception as e:
+
+        print("Membership Check Error:", e)
+
+        return False
+
+# =========================================
+# PHONE LOOKUP
 # =========================================
 
 def phone_lookup(number):
 
     try:
 
-        # Example API Call
         response = requests.get(
             EXTERNAL_API_URL,
             timeout=30
@@ -89,12 +188,13 @@ def phone_lookup(number):
         return json.dumps(error_data, indent=4)
 
 # =========================================
-# HANDLE USER MESSAGE
+# HANDLE MESSAGE
 # =========================================
 
 def handle_message(message):
 
     chat_id = message["chat"]["id"]
+    user_id = message["from"]["id"]
 
     if "text" not in message:
         return
@@ -107,9 +207,26 @@ def handle_message(message):
 
     if text == "/start":
 
+        joined = check_membership(user_id)
+
+        if not joined:
+
+            force_text = (
+                "🚫 You Must Join Our Channel And Group First\n\n"
+                "After Joining Click Verify Button."
+            )
+
+            send_message(
+                chat_id,
+                force_text,
+                reply_markup=force_join_keyboard()
+            )
+
+            return
+
         welcome_text = (
             "👋 Welcome To Phone Lookup Bot\n\n"
-            "Click the button below."
+            "Click The Button Below."
         )
 
         send_message(
@@ -124,16 +241,40 @@ def handle_message(message):
 
     elif text == "📱 Phone Lookup":
 
+        joined = check_membership(user_id)
+
+        if not joined:
+
+            send_message(
+                chat_id,
+                "🚫 Join Channel And Group First",
+                reply_markup=force_join_keyboard()
+            )
+
+            return
+
         send_message(
             chat_id,
-            "📞 Send 10 digit mobile number:"
+            "📞 Send 11 digit mobile number:"
         )
 
     # =====================================
-    # MOBILE NUMBER CHECK
+    # 11 DIGIT NUMBER CHECK
     # =====================================
 
-    elif text.isdigit() and len(text) == 10:
+    elif text.isdigit() and len(text) == 11:
+
+        joined = check_membership(user_id)
+
+        if not joined:
+
+            send_message(
+                chat_id,
+                "🚫 Join Channel And Group First",
+                reply_markup=force_join_keyboard()
+            )
+
+            return
 
         send_message(
             chat_id,
@@ -156,8 +297,71 @@ def handle_message(message):
 
         send_message(
             chat_id,
-            "❌ Invalid Input\n\nSend a valid 10 digit mobile number."
+            "❌ Invalid Input\n\nSend A Valid 11 Digit Mobile Number."
         )
+
+# =========================================
+# HANDLE CALLBACK QUERY
+# =========================================
+
+def answer_callback_query(callback_id, text=None):
+
+    url = f"{BASE_URL}/answerCallbackQuery"
+
+    payload = {
+        "callback_query_id": callback_id
+    }
+
+    if text:
+        payload["text"] = text
+
+    try:
+        requests.post(url, data=payload, timeout=30)
+
+    except Exception as e:
+        print("Callback Error:", e)
+
+def handle_callback_query(callback_query):
+
+    callback_id = callback_query["id"]
+
+    message = callback_query["message"]
+
+    chat_id = message["chat"]["id"]
+
+    user_id = callback_query["from"]["id"]
+
+    data = callback_query["data"]
+
+    if data == "verify_join":
+
+        joined = check_membership(user_id)
+
+        if joined:
+
+            answer_callback_query(
+                callback_id,
+                "Verification Successful"
+            )
+
+            send_message(
+                chat_id,
+                "✅ Verification Successful\n\nNow You Can Use Bot.",
+                reply_markup=main_keyboard()
+            )
+
+        else:
+
+            answer_callback_query(
+                callback_id,
+                "Join Required"
+            )
+
+            send_message(
+                chat_id,
+                "❌ You Did Not Join Channel And Group",
+                reply_markup=force_join_keyboard()
+            )
 
 # =========================================
 # GET UPDATES
@@ -189,7 +393,7 @@ def get_updates(offset=None):
         return {}
 
 # =========================================
-# MAIN BOT LOOP
+# RUN BOT
 # =========================================
 
 def run_bot():
@@ -210,9 +414,17 @@ def run_bot():
 
                     offset = update["update_id"] + 1
 
+                    # Handle Message
                     if "message" in update:
 
                         handle_message(update["message"])
+
+                    # Handle Callback Query
+                    if "callback_query" in update:
+
+                        handle_callback_query(
+                            update["callback_query"]
+                        )
 
             time.sleep(1)
 
