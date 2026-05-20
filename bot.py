@@ -6,7 +6,7 @@ import time
 # BOT CONFIG
 # =========================================
 
-BOT_TOKEN = ""  # Paste Bot Token Here
+BOT_TOKEN = "8980896068:AAEvfqOuIT6JLHWm6t01sWC3ME7fJF-8bJg"  # Paste Bot Token Here
 
 # Dummy HTTPS API Server
 EXTERNAL_API_URL = ""  # Example: https://dummyjson.com/users/1
