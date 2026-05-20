@@ -11,7 +11,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 # BOT SETTINGS
 # =========================================
 
-BOT_TOKEN = "8980896068:AAE2cVF_aN8V8_4KpDcf7nyCo3cTfxtj270"
+BOT_TOKEN = os.getenv("BOT_TOKEN")
 
 API_URL = "https://dummyjson.com/users/1"
 
@@ -55,21 +55,21 @@ def check_membership(user_id):
 
     try:
 
-        channel_url = f"{BASE_URL}/getChatMember"
+        url = f"{BASE_URL}/getChatMember"
 
         channel_data = {
             "chat_id": CHANNEL_USERNAME,
             "user_id": user_id
         }
 
-        channel_response = requests.post(channel_url, data=channel_data).json()
-
         group_data = {
             "chat_id": GROUP_USERNAME,
             "user_id": user_id
         }
 
-        group_response = requests.post(channel_url, data=group_data).json()
+        channel_response = requests.post(url, data=channel_data).json()
+
+        group_response = requests.post(url, data=group_data).json()
 
         channel_status = channel_response["result"]["status"]
 
@@ -210,8 +210,6 @@ def run_bot():
 
     offset = 0
 
-    verified_users = {}
-
     while True:
 
         try:
@@ -245,11 +243,9 @@ def run_bot():
 
                         if joined:
 
-                            verified_users[user_id] = True
-
                             send_message(
                                 chat_id,
-                                "✅ You Are Verified\n\nWelcome To Phone Lookup Bot",
+                                "✅ Verified Successfully\n\nWelcome To Phone Lookup Bot",
                                 main_menu()
                             )
 
@@ -270,8 +266,6 @@ def run_bot():
                         joined = check_membership(user_id)
 
                         if joined:
-
-                            verified_users[user_id] = True
 
                             send_message(
                                 chat_id,
@@ -328,7 +322,7 @@ def run_bot():
 
 
 # =========================================
-# START
+# START BOT
 # =========================================
 
 if __name__ == "__main__":
